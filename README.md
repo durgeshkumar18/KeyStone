@@ -1278,7 +1278,7 @@ If a specific open-source license is added later, replace this section with the 
 
 # 👨‍💻 Author
 
-**Durgesh Nishad**
+**DURGESH KUMAR NISHAD**
 
 Electronics & Communication Engineering
 
