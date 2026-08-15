@@ -1,0 +1,556 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f4f7fb;
+  color: #1f2937;
+}
+
+/* ============================================================
+   LOGIN
+============================================================ */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg,
+      #eef4ff,
+      #f8fbff);
+}
+
+.login-card {
+  width: 380px;
+  padding: 40px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 42px;
+  color: #1d4ed8;
+}
+
+.login-card p {
+  color: #64748b;
+}
+
+.login-card form {
+  margin-top: 30px;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 13px;
+  margin-bottom: 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.login-card input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.login-card button {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.login-card button:hover {
+  background: #1d4ed8;
+}
+
+.message {
+  margin-top: 20px;
+  font-weight: bold;
+}
+
+/* ============================================================
+   DASHBOARD PAGE
+============================================================ */
+
+.dashboard-page {
+  min-height: 100vh;
+  background: #f4f7fb;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.dashboard-header {
+  background: white;
+  padding: 22px 45px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  font-size: 38px;
+  color: #1d4ed8;
+}
+
+.dashboard-header p {
+  margin: 3px 0 0;
+  color: #64748b;
+}
+
+.logout-button {
+  padding: 11px 24px;
+  border: none;
+  border-radius: 7px;
+  background: #dc2626;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  background: #b91c1c;
+}
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+
+.navigation {
+  background: white;
+  padding: 15px 45px;
+  display: flex;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.nav-button {
+  padding: 11px 18px;
+  border: none;
+  border-radius: 7px;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.nav-button:hover {
+  background: #cbd5e1;
+}
+
+.nav-button.active {
+  background: #2563eb;
+  color: white;
+}
+
+/* ============================================================
+   CONTENT
+============================================================ */
+
+.dashboard-content {
+  max-width: 1250px;
+  margin: auto;
+  padding: 35px;
+}
+
+.dashboard-content h2 {
+  text-align: center;
+  margin-bottom: 35px;
+  color: #1e3a8a;
+}
+
+.loading,
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-size: 18px;
+}
+
+/* ============================================================
+   DASHBOARD CARDS
+============================================================ */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4,
+      1fr);
+  gap: 20px;
+}
+
+.dashboard-card {
+  background: white;
+  padding: 28px 20px;
+  border-radius: 14px;
+  text-align: center;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-card h3 {
+  margin: 0 0 15px;
+  font-size: 16px;
+  color: #475569;
+}
+
+.dashboard-card strong {
+  font-size: 34px;
+  color: #2563eb;
+}
+
+/* ============================================================
+   PAGE TITLE
+============================================================ */
+
+.page-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.page-title h2 {
+  margin: 0;
+}
+
+.refresh-button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 7px;
+  background: #2563eb;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.refresh-button:hover {
+  background: #1d4ed8;
+}
+
+/* ============================================================
+   DATA GRID
+============================================================ */
+
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(2,
+      1fr);
+  gap: 22px;
+}
+
+/* ============================================================
+   DATA CARD
+============================================================ */
+
+.data-card {
+  background: white;
+  padding: 25px;
+  border-radius: 14px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.08);
+}
+
+.data-card h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #1d4ed8;
+  font-size: 21px;
+}
+
+.data-card p {
+  margin: 10px 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.data-card strong {
+  color: #1e293b;
+}
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+.status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 5px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.status.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status.inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ============================================================
+   PRIORITY
+============================================================ */
+
+.priority {
+  font-weight: bold;
+  color: #b45309;
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 1000px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2,
+        1fr);
+  }
+
+  .data-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .dashboard-header {
+    padding: 20px;
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+
+  .navigation {
+    padding: 15px;
+    justify-content: center;
+  }
+
+  .dashboard-content {
+    padding: 20px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-card {
+    width: calc(100% - 30px);
+    padding: 30px 20px;
+  }
+
+  .page-title {
+    flex-direction: column;
+    gap: 15px;
+  }
+}
+
+/* ============================================================
+   CUSTOMER CRUD
+============================================================ */
+
+.page-title>div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.add-button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 7px;
+  background: #16a34a;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.add-button:hover {
+  background: #15803d;
+}
+
+/* ============================================================
+   CUSTOMER FORM
+============================================================ */
+
+.customer-form-card {
+  background: white;
+  padding: 28px;
+  margin-bottom: 30px;
+  border-radius: 14px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.08);
+}
+
+.customer-form-card h3 {
+  margin-top: 0;
+  margin-bottom: 22px;
+  color: #1e3a8a;
+  font-size: 22px;
+}
+
+.customer-form-card form {
+  display: grid;
+  gap: 15px;
+}
+
+.customer-form-card input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.customer-form-card input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+/* ============================================================
+   FORM ACTIONS
+============================================================ */
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.save-button {
+  padding: 11px 20px;
+  border: none;
+  border-radius: 7px;
+  background: #2563eb;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.save-button:hover {
+  background: #1d4ed8;
+}
+
+.save-button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  padding: 11px 20px;
+  border: none;
+  border-radius: 7px;
+  background: #64748b;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.cancel-button:hover {
+  background: #475569;
+}
+
+.cancel-button:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   CUSTOMER CARD ACTIONS
+============================================================ */
+
+.card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.edit-button {
+  padding: 9px 16px;
+  border: none;
+  border-radius: 7px;
+  background: #f59e0b;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.edit-button:hover {
+  background: #d97706;
+}
+
+.delete-button {
+  padding: 9px 16px;
+  border: none;
+  border-radius: 7px;
+  background: #dc2626;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  background: #b91c1c;
+}
+
+/* ============================================================
+   CUSTOMER MESSAGE
+============================================================ */
+
+.customer-form-card+.data-grid {
+  margin-top: 10px;
+}
+
+/* ============================================================
+   RESPONSIVE CUSTOMER CRUD
+============================================================ */
+
+@media (max-width: 650px) {
+
+  .page-title>div {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .add-button,
+  .refresh-button {
+    flex: 1;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .save-button,
+  .cancel-button {
+    width: 100%;
+  }
+
+  .card-actions {
+    flex-direction: column;
+  }
+
+  .edit-button,
+  .delete-button {
+    width: 100%;
+  }
+}
