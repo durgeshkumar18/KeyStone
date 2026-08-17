@@ -42,7 +42,8 @@ public class SecurityConfig {
 
         @Bean
         public AuthenticationManager authenticationManager(
-                        AuthenticationConfiguration configuration) throws Exception {
+                        AuthenticationConfiguration configuration)
+                        throws Exception {
 
                 return configuration.getAuthenticationManager();
         }
@@ -56,79 +57,145 @@ public class SecurityConfig {
                                 List.of("http://localhost:5173"));
 
                 configuration.setAllowedMethods(
-                                List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                                List.of(
+                                                "GET",
+                                                "POST",
+                                                "PUT",
+                                                "DELETE",
+                                                "OPTIONS"));
 
                 configuration.setAllowedHeaders(
-                                List.of("Authorization", "Content-Type"));
+                                List.of(
+                                                "Authorization",
+                                                "Content-Type",
+                                                "Accept"));
 
                 configuration.setAllowCredentials(true);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-                source.registerCorsConfiguration("/**", configuration);
+                source.registerCorsConfiguration(
+                                "/**",
+                                configuration);
 
                 return source;
         }
 
         @Bean
         public SecurityFilterChain securityFilterChain(
-                        HttpSecurity http) throws Exception {
+                        HttpSecurity http)
+                        throws Exception {
 
                 http
+
+                                // Disable CSRF for JWT REST API
                                 .csrf(csrf -> csrf.disable())
 
+                                // Enable CORS
                                 .cors(cors -> {
                                 })
 
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(
-                                                                SessionCreationPolicy.STATELESS))
+                                // Stateless JWT authentication
+                                .sessionManagement(session -> session.sessionCreationPolicy(
+                                                SessionCreationPolicy.STATELESS))
 
                                 .authorizeHttpRequests(auth -> auth
 
-                                                // Public authentication APIs
-                                                .requestMatchers("/api/auth/login", "/api/auth/register")
+                                                // ====================================================
+                                                // PUBLIC
+                                                // ====================================================
+
+                                                .requestMatchers(
+                                                                "/api/auth/login",
+                                                                "/api/auth/register")
                                                 .permitAll()
 
-                                                // Error endpoint
                                                 .requestMatchers("/error")
                                                 .permitAll()
 
-                                                // CORS preflight
-                                                .requestMatchers(HttpMethod.OPTIONS, "/**")
+                                                .requestMatchers(
+                                                                HttpMethod.OPTIONS,
+                                                                "/**")
                                                 .permitAll()
 
-                                                // ADMIN ONLY
-                                                .requestMatchers("/api/users/**")
+                                                // ====================================================
+                                                // ADMIN
+                                                // ====================================================
+
+                                                .requestMatchers(
+                                                                "/api/users/**")
                                                 .hasRole("ADMIN")
 
-                                                // Dashboard
-                                                .requestMatchers("/api/dashboard")
-                                                .hasAnyRole("ADMIN", "DISPATCHER")
+                                                // ====================================================
+                                                // DASHBOARD
+                                                // ====================================================
 
-                                                // Customers
-                                                .requestMatchers("/api/customers/**")
-                                                .hasAnyRole("ADMIN", "DISPATCHER")
+                                                .requestMatchers(
+                                                                "/api/dashboard")
+                                                .hasAnyRole(
+                                                                "ADMIN",
+                                                                "DISPATCHER")
 
-                                                // Technicians
-                                                .requestMatchers("/api/technicians/**")
-                                                .hasAnyRole("ADMIN", "DISPATCHER")
+                                                // ====================================================
+                                                // CUSTOMERS
+                                                // ====================================================
 
-                                                // Service Requests
-                                                .requestMatchers("/api/service-requests/**")
-                                                .hasAnyRole("ADMIN", "DISPATCHER", "TECHNICIAN")
+                                                .requestMatchers(
+                                                                "/api/customers/**")
+                                                .hasAnyRole(
+                                                                "ADMIN",
+                                                                "DISPATCHER")
 
-                                                // Work Orders
-                                                .requestMatchers("/api/workorders/**")
-                                                .hasAnyRole("ADMIN", "DISPATCHER", "TECHNICIAN")
+                                                // ====================================================
+                                                // TECHNICIANS
+                                                // ====================================================
 
-                                                // Profile
-                                                .requestMatchers("/api/profile")
+                                                .requestMatchers(
+                                                                "/api/technicians/**")
+                                                .hasAnyRole(
+                                                                "ADMIN",
+                                                                "DISPATCHER")
+
+                                                // ====================================================
+                                                // SERVICE REQUESTS
+                                                // ====================================================
+
+                                                .requestMatchers(
+                                                                "/api/service-requests/**")
+                                                .hasAnyRole(
+                                                                "ADMIN",
+                                                                "DISPATCHER",
+                                                                "TECHNICIAN")
+
+                                                // ====================================================
+                                                // WORK ORDERS
+                                                // ====================================================
+
+                                                .requestMatchers(
+                                                                "/api/workorders/**")
+                                                .hasAnyRole(
+                                                                "ADMIN",
+                                                                "DISPATCHER",
+                                                                "TECHNICIAN")
+
+                                                // ====================================================
+                                                // PROFILE
+                                                // ====================================================
+
+                                                .requestMatchers(
+                                                                "/api/profile")
                                                 .authenticated()
 
-                                                .anyRequest().authenticated())
-                                .authenticationProvider(authenticationProvider())
+                                                // ====================================================
+                                                // EVERYTHING ELSE
+                                                // ====================================================
 
+                                                .anyRequest().authenticated())
+
+                                .authenticationProvider(
+                                                authenticationProvider())
+
+                                // JWT filter BEFORE username/password filter
                                 .addFilterBefore(
                                                 jwtAuthenticationFilter,
                                                 UsernamePasswordAuthenticationFilter.class);

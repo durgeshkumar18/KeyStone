@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import "./App.css";
 
-// ============================================================
-// INTERFACES
-// ============================================================
+const API = "http://localhost:8080/api";
 
 interface DashboardData {
   totalCustomers: number;
@@ -50,17 +48,13 @@ interface WorkOrder {
   id: number;
   title: string;
   description: string;
-  customerName: string;
   customerId: number;
+  customerName: string;
   priority: string;
   status: string;
   scheduledDate: string;
   createdAt: string;
 }
-
-// ============================================================
-// PAGE TYPE
-// ============================================================
 
 type Page =
   | "dashboard"
@@ -69,23 +63,27 @@ type Page =
   | "serviceRequests"
   | "workOrders";
 
-// ============================================================
-// APP
-// ============================================================
+const statuses = [
+  "OPEN",
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "CANCELLED",
+];
+
+const priorities = ["LOW", "MEDIUM", "HIGH"];
 
 function App() {
-  // ============================================================
-  // LOGIN
-  // ============================================================
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-  const [loggedIn, setLoggedIn] = useState(false);
 
-  // ============================================================
-  // DATA
-  // ============================================================
+  const [loggedIn, setLoggedIn] = useState(
+    Boolean(localStorage.getItem("token"))
+  );
+
+  const [page, setPage] = useState<Page>("dashboard");
+  const [loading, setLoading] = useState(false);
 
   const [dashboard, setDashboard] =
     useState<DashboardData | null>(null);
@@ -102,19 +100,9 @@ function App() {
   const [workOrders, setWorkOrders] =
     useState<WorkOrder[]>([]);
 
-  // ============================================================
-  // UI
-  // ============================================================
-
-  const [page, setPage] =
-    useState<Page>("dashboard");
-
-  const [loading, setLoading] =
-    useState(false);
-
-  // ============================================================
-  // CUSTOMER FORM
-  // ============================================================
+  /* ============================================================
+     CUSTOMER STATE
+     ============================================================ */
 
   const [showCustomerForm, setShowCustomerForm] =
     useState(false);
@@ -129,9 +117,9 @@ function App() {
     address: "",
   });
 
-  // ============================================================
-  // TECHNICIAN FORM
-  // ============================================================
+  /* ============================================================
+     TECHNICIAN STATE
+     ============================================================ */
 
   const [showTechnicianForm, setShowTechnicianForm] =
     useState(false);
@@ -146,193 +134,128 @@ function App() {
     specialization: "",
   });
 
-  // ============================================================
-  // SERVICE REQUEST FORM
-  // ============================================================
+  /* ============================================================
+     SERVICE REQUEST STATE
+     ============================================================ */
 
   const [showServiceRequestForm, setShowServiceRequestForm] =
     useState(false);
 
-  const [serviceRequestForm, setServiceRequestForm] =
-    useState({
-      title: "",
-      description: "",
-      customerId: "",
-      priority: "MEDIUM",
-    });
+  const [editingServiceRequestId, setEditingServiceRequestId] =
+    useState<number | null>(null);
 
-  // ============================================================
-  // WORK ORDER FORM
-  // ============================================================
+  const [serviceRequestForm, setServiceRequestForm] = useState({
+    title: "",
+    description: "",
+    customerId: "",
+    priority: "MEDIUM",
+  });
+
+  /* ============================================================
+     WORK ORDER STATE
+     ============================================================ */
 
   const [showWorkOrderForm, setShowWorkOrderForm] =
     useState(false);
 
-  const [workOrderForm, setWorkOrderForm] =
-    useState({
-      title: "",
-      description: "",
-      customerId: "",
-      priority: "MEDIUM",
-      status: "OPEN",
-      scheduledDate: "",
-    });
+  const [editingWorkOrderId, setEditingWorkOrderId] =
+    useState<number | null>(null);
 
-  // ============================================================
-  // TOKEN
-  // ============================================================
+  const [workOrderForm, setWorkOrderForm] = useState({
+    title: "",
+    description: "",
+    customerId: "",
+    priority: "MEDIUM",
+    status: "OPEN",
+    scheduledDate: "",
+  });
 
-  const getToken = () => {
-    return localStorage.getItem("token");
-  };
+  const token = () =>
+    localStorage.getItem("token");
 
-  // ============================================================
-  // INITIAL LOGIN CHECK
-  // ============================================================
+  /* ============================================================
+     GET DATA
+     ============================================================ */
 
-  useEffect(() => {
-    const token = getToken();
+  async function getData<T>(
+    endpoint: string
+  ): Promise<T> {
+    const currentToken = token();
 
-    if (token) {
-      setLoggedIn(true);
-      loadDashboard(token);
-    }
-  }, []);
-
-  // ============================================================
-  // LOGIN
-  // ============================================================
-
-  const handleLogin = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
-
-    setMessage("Logging in...");
-
-    try {
-      const response = await fetch(
-        "http://localhost:8080/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-        }
+    if (!currentToken) {
+      throw new Error(
+        "Session expired. Please login again."
       );
+    }
 
-      if (!response.ok) {
+    const response = await fetch(
+      `${API}${endpoint}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${currentToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 401) {
         throw new Error(
-          "Invalid email or password"
+          "Session expired. Please login again."
         );
       }
 
-      const data = await response.json();
-
-      localStorage.setItem(
-        "token",
-        data.token
-      );
-
-      setLoggedIn(true);
-      setMessage("Login successful!");
-
-      await loadDashboard(data.token);
-
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Login failed"
+      throw new Error(
+        `Request failed (${response.status})`
       );
     }
-  };
 
-  // ============================================================
-  // DASHBOARD
-  // ============================================================
+    return response.json();
+  }
 
-  const loadDashboard = async (
-    jwtToken: string
-  ) => {
-    try {
-      const response = await fetch(
-        "http://localhost:8080/api/dashboard",
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken}`,
-          },
-        }
-      );
+  /* ============================================================
+     DASHBOARD
+     ============================================================ */
 
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load dashboard"
-        );
-      }
-
-      const data =
-        await response.json();
-
-      setDashboard(data);
-
-    } catch (error) {
-      console.error(
-        "Dashboard error:",
-        error
-      );
-    }
-  };
-
-  // ============================================================
-  // CUSTOMERS
-  // ============================================================
-
-  const loadCustomers = async (
-    jwtToken: string
-  ) => {
+  async function loadDashboard() {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        "http://localhost:8080/api/customers",
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load customers"
-        );
-      }
-
       const data =
-        await response.json();
+        await getData<DashboardData>(
+          "/dashboard"
+        );
 
-      setCustomers(data);
-
+      setDashboard(data);
     } catch (error) {
-      console.error(
-        "Customers error:",
-        error
-      );
+      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // ============================================================
-  // CUSTOMER FORM RESET
-  // ============================================================
+  /* ============================================================
+     CUSTOMERS
+     ============================================================ */
 
-  const resetCustomerForm = () => {
+  async function loadCustomers() {
+    try {
+      setLoading(true);
+
+      const data =
+        await getData<Customer[]>(
+          "/customers"
+        );
+
+      setCustomers(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetCustomerForm() {
     setCustomerForm({
       fullName: "",
       email: "",
@@ -342,82 +265,23 @@ function App() {
 
     setEditingCustomerId(null);
     setShowCustomerForm(false);
-  };
+  }
 
-  // ============================================================
-  // CREATE / UPDATE CUSTOMER
-  // ============================================================
+  function startAddCustomer() {
+    setCustomerForm({
+      fullName: "",
+      email: "",
+      phone: "",
+      address: "",
+    });
 
-  const handleSaveCustomer = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
+    setEditingCustomerId(null);
+    setShowCustomerForm(true);
+  }
 
-    const token = getToken();
-
-    if (!token) {
-      setMessage("Authentication required");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const isEditing =
-        editingCustomerId !== null;
-
-      const url = isEditing
-        ? `http://localhost:8080/api/customers/${editingCustomerId}`
-        : "http://localhost:8080/api/customers";
-
-      const response = await fetch(url, {
-        method: isEditing ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(customerForm),
-      });
-
-      if (!response.ok) {
-        const errorText =
-          await response.text();
-
-        throw new Error(
-          errorText ||
-            "Failed to save customer"
-        );
-      }
-
-      resetCustomerForm();
-
-      await loadCustomers(token);
-      await loadDashboard(token);
-
-      setMessage(
-        isEditing
-          ? "Customer updated successfully!"
-          : "Customer created successfully!"
-      );
-
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to save customer"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================================
-  // EDIT CUSTOMER
-  // ============================================================
-
-  const handleEditCustomer = (
+  function editCustomer(
     customer: Customer
-  ) => {
+  ) {
     setCustomerForm({
       fullName: customer.fullName,
       email: customer.email,
@@ -427,19 +291,70 @@ function App() {
 
     setEditingCustomerId(customer.id);
     setShowCustomerForm(true);
-  };
+  }
 
-  // ============================================================
-  // DELETE CUSTOMER
-  // ============================================================
+  async function saveCustomer(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
 
-  const handleDeleteCustomer = async (
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const editing =
+        editingCustomerId !== null;
+
+      const endpoint = editing
+        ? `/customers/${editingCustomerId}`
+        : "/customers";
+
+      const response = await fetch(
+        `${API}${endpoint}`,
+        {
+          method: editing ? "PUT" : "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${currentToken}`,
+          },
+          body: JSON.stringify(
+            customerForm
+          ),
+        }
+      );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            `Customer request failed (${response.status})`
+        );
+      }
+
+      resetCustomerForm();
+      await loadCustomers();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to save customer."
+      );
+    }
+  }
+
+  async function deleteCustomer(
     id: number
-  ) => {
-    const token = getToken();
-
-    if (!token) return;
-
+  ) {
     if (
       !window.confirm(
         "Are you sure you want to delete this customer?"
@@ -449,91 +364,69 @@ function App() {
     }
 
     try {
-      setLoading(true);
+      const currentToken = token();
 
-      const response = await fetch(
-        `http://localhost:8080/api/customers/${id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API}/customers/${id}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization:
+                `Bearer ${currentToken}`,
+            },
+          }
+        );
 
       if (!response.ok) {
-        const errorText =
+        const text =
           await response.text();
 
         throw new Error(
-          errorText ||
-            "Failed to delete customer"
+          text ||
+            `Delete failed (${response.status})`
         );
       }
 
-      await loadCustomers(token);
-      await loadDashboard(token);
-
-      setMessage(
-        "Customer deleted successfully!"
-      );
-
+      await loadCustomers();
+      await loadDashboard();
     } catch (error) {
-      setMessage(
+      alert(
         error instanceof Error
           ? error.message
-          : "Failed to delete customer"
+          : "Unable to delete customer."
       );
-    } finally {
-      setLoading(false);
     }
-  };
+  }
 
-  // ============================================================
-  // TECHNICIANS
-  // ============================================================
+  /* ============================================================
+     TECHNICIANS
+     ============================================================ */
 
-  const loadTechnicians = async (
-    jwtToken: string
-  ) => {
+  async function loadTechnicians() {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        "http://localhost:8080/api/technicians",
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load technicians"
-        );
-      }
-
       const data =
-        await response.json();
+        await getData<Technician[]>(
+          "/technicians"
+        );
 
       setTechnicians(data);
-
     } catch (error) {
-      console.error(
-        "Technicians error:",
-        error
-      );
+      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // ============================================================
-  // TECHNICIAN FORM RESET
-  // ============================================================
-
-  const resetTechnicianForm = () => {
+  function resetTechnicianForm() {
     setTechnicianForm({
       fullName: "",
       email: "",
@@ -543,84 +436,23 @@ function App() {
 
     setEditingTechnicianId(null);
     setShowTechnicianForm(false);
-  };
+  }
 
-  // ============================================================
-  // CREATE / UPDATE TECHNICIAN
-  // ============================================================
+  function startAddTechnician() {
+    setTechnicianForm({
+      fullName: "",
+      email: "",
+      phone: "",
+      specialization: "",
+    });
 
-  const handleSaveTechnician = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
+    setEditingTechnicianId(null);
+    setShowTechnicianForm(true);
+  }
 
-    const token = getToken();
-
-    if (!token) {
-      setMessage("Authentication required");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const isEditing =
-        editingTechnicianId !== null;
-
-      const url = isEditing
-        ? `http://localhost:8080/api/technicians/${editingTechnicianId}`
-        : "http://localhost:8080/api/technicians";
-
-      const response = await fetch(url, {
-        method: isEditing ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(
-          technicianForm
-        ),
-      });
-
-      if (!response.ok) {
-        const errorText =
-          await response.text();
-
-        throw new Error(
-          errorText ||
-            "Failed to save technician"
-        );
-      }
-
-      resetTechnicianForm();
-
-      await loadTechnicians(token);
-      await loadDashboard(token);
-
-      setMessage(
-        isEditing
-          ? "Technician updated successfully!"
-          : "Technician created successfully!"
-      );
-
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to save technician"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================================
-  // EDIT TECHNICIAN
-  // ============================================================
-
-  const handleEditTechnician = (
+  function editTechnician(
     technician: Technician
-  ) => {
+  ) {
     setTechnicianForm({
       fullName: technician.fullName,
       email: technician.email,
@@ -634,19 +466,70 @@ function App() {
     );
 
     setShowTechnicianForm(true);
-  };
+  }
 
-  // ============================================================
-  // DELETE TECHNICIAN
-  // ============================================================
+  async function saveTechnician(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
 
-  const handleDeleteTechnician = async (
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const editing =
+        editingTechnicianId !== null;
+
+      const endpoint = editing
+        ? `/technicians/${editingTechnicianId}`
+        : "/technicians";
+
+      const response = await fetch(
+        `${API}${endpoint}`,
+        {
+          method: editing ? "PUT" : "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${currentToken}`,
+          },
+          body: JSON.stringify(
+            technicianForm
+          ),
+        }
+      );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            `Technician request failed (${response.status})`
+        );
+      }
+
+      resetTechnicianForm();
+      await loadTechnicians();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to save technician."
+      );
+    }
+  }
+
+  async function deleteTechnician(
     id: number
-  ) => {
-    const token = getToken();
-
-    if (!token) return;
-
+  ) {
     if (
       !window.confirm(
         "Are you sure you want to delete this technician?"
@@ -656,363 +539,618 @@ function App() {
     }
 
     try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API}/technicians/${id}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization:
+                `Bearer ${currentToken}`,
+            },
+          }
+        );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            `Delete failed (${response.status})`
+        );
+      }
+
+      await loadTechnicians();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete technician."
+      );
+    }
+  }
+
+  /* ============================================================
+     SERVICE REQUESTS
+     ============================================================ */
+
+  async function loadServiceRequests() {
+    try {
       setLoading(true);
 
+      const data =
+        await getData<ServiceRequest[]>(
+          "/service-requests"
+        );
+
+      setServiceRequests(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetServiceRequestForm() {
+    setServiceRequestForm({
+      title: "",
+      description: "",
+      customerId: "",
+      priority: "MEDIUM",
+    });
+
+    setEditingServiceRequestId(null);
+    setShowServiceRequestForm(false);
+  }
+
+  function startAddServiceRequest() {
+    setServiceRequestForm({
+      title: "",
+      description: "",
+      customerId:
+        customers.length > 0
+          ? String(customers[0].id)
+          : "",
+      priority: "MEDIUM",
+    });
+
+    setEditingServiceRequestId(null);
+    setShowServiceRequestForm(true);
+  }
+
+  function editServiceRequest(
+    request: ServiceRequest
+  ) {
+    setServiceRequestForm({
+      title: request.title,
+      description:
+        request.description,
+      customerId:
+        String(request.customerId),
+      priority:
+        request.priority || "MEDIUM",
+    });
+
+    setEditingServiceRequestId(
+      request.id
+    );
+
+    setShowServiceRequestForm(true);
+  }
+
+  async function saveServiceRequest(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!serviceRequestForm.customerId) {
+      alert("Please select a customer.");
+      return;
+    }
+
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const editing =
+        editingServiceRequestId !== null;
+
+      const endpoint = editing
+        ? `/service-requests/${editingServiceRequestId}`
+        : "/service-requests";
+
+      const payload = {
+        title:
+          serviceRequestForm.title,
+        description:
+          serviceRequestForm.description,
+        customerId: Number(
+          serviceRequestForm.customerId
+        ),
+        priority:
+          serviceRequestForm.priority,
+      };
+
       const response = await fetch(
-        `http://localhost:8080/api/technicians/${id}`,
+        `${API}${endpoint}`,
         {
-          method: "DELETE",
+          method: editing ? "PUT" : "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${currentToken}`,
           },
+          body: JSON.stringify(payload),
         }
       );
 
       if (!response.ok) {
-        const errorText =
+        const text =
           await response.text();
 
         throw new Error(
-          errorText ||
-            "Failed to delete technician"
+          text ||
+            `Service request failed (${response.status})`
         );
       }
 
-      await loadTechnicians(token);
-      await loadDashboard(token);
+      resetServiceRequestForm();
+      await loadServiceRequests();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to save service request."
+      );
+    }
+  }
 
-      setMessage(
-        "Technician deleted successfully!"
+  async function deleteServiceRequest(
+    id: number
+  ) {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this service request?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API}/service-requests/${id}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization:
+                `Bearer ${currentToken}`,
+            },
+          }
+        );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            `Delete failed (${response.status})`
+        );
+      }
+
+      await loadServiceRequests();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete service request."
+      );
+    }
+  }
+
+  async function updateServiceRequestStatus(
+    id: number,
+    status: string
+  ) {
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API}/service-requests/${id}/status?status=${encodeURIComponent(
+            status
+          )}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization:
+                `Bearer ${currentToken}`,
+            },
+          }
+        );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            `Status update failed (${response.status})`
+        );
+      }
+
+      await loadServiceRequests();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to update status."
+      );
+    }
+  }
+
+  async function assignTechnician(
+    requestId: number,
+    technicianId: number
+  ) {
+    if (!technicianId) {
+      return;
+    }
+
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API}/service-requests/${requestId}/assign-technician/${technicianId}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization:
+                `Bearer ${currentToken}`,
+            },
+          }
+        );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            `Assignment failed (${response.status})`
+        );
+      }
+
+      await loadServiceRequests();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to assign technician."
+      );
+    }
+  }
+
+  /* ============================================================
+     WORK ORDERS
+     ============================================================ */
+
+  async function loadWorkOrders() {
+    try {
+      setLoading(true);
+
+      const data =
+        await getData<WorkOrder[]>(
+          "/workorders"
+        );
+
+      setWorkOrders(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetWorkOrderForm() {
+    setWorkOrderForm({
+      title: "",
+      description: "",
+      customerId: "",
+      priority: "MEDIUM",
+      status: "OPEN",
+      scheduledDate: "",
+    });
+
+    setEditingWorkOrderId(null);
+    setShowWorkOrderForm(false);
+  }
+
+  function startAddWorkOrder() {
+    setWorkOrderForm({
+      title: "",
+      description: "",
+      customerId:
+        customers.length > 0
+          ? String(customers[0].id)
+          : "",
+      priority: "MEDIUM",
+      status: "OPEN",
+      scheduledDate: "",
+    });
+
+    setEditingWorkOrderId(null);
+    setShowWorkOrderForm(true);
+  }
+
+  function editWorkOrder(
+    order: WorkOrder
+  ) {
+    setWorkOrderForm({
+      title: order.title,
+      description:
+        order.description,
+      customerId:
+        String(order.customerId),
+      priority:
+        order.priority || "MEDIUM",
+      status:
+        order.status || "OPEN",
+      scheduledDate:
+        order.scheduledDate || "",
+    });
+
+    setEditingWorkOrderId(order.id);
+    setShowWorkOrderForm(true);
+  }
+
+  async function saveWorkOrder(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!workOrderForm.customerId) {
+      alert("Please select a customer.");
+      return;
+    }
+
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const editing =
+        editingWorkOrderId !== null;
+
+      const endpoint = editing
+        ? `/workorders/${editingWorkOrderId}`
+        : "/workorders";
+
+      const payload = {
+        title:
+          workOrderForm.title,
+        description:
+          workOrderForm.description,
+        customerId: Number(
+          workOrderForm.customerId
+        ),
+        priority:
+          workOrderForm.priority,
+        status:
+          workOrderForm.status,
+        scheduledDate:
+          workOrderForm.scheduledDate
+            ? workOrderForm.scheduledDate
+            : null,
+      };
+
+      const response = await fetch(
+        `${API}${endpoint}`,
+        {
+          method: editing ? "PUT" : "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${currentToken}`,
+          },
+          body: JSON.stringify(payload),
+        }
       );
 
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            `Work order request failed (${response.status})`
+        );
+      }
+
+      resetWorkOrderForm();
+      await loadWorkOrders();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to save work order."
+      );
+    }
+  }
+
+  async function deleteWorkOrder(
+    id: number
+  ) {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this work order?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const currentToken = token();
+
+      if (!currentToken) {
+        throw new Error(
+          "Session expired. Please login again."
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API}/workorders/${id}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization:
+                `Bearer ${currentToken}`,
+            },
+          }
+        );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        if (response.status === 403) {
+          throw new Error(
+            "Only ADMIN can delete work orders."
+          );
+        }
+
+        throw new Error(
+          text ||
+            `Delete failed (${response.status})`
+        );
+      }
+
+      await loadWorkOrders();
+      await loadDashboard();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete work order."
+      );
+    }
+  }
+
+  /* ============================================================
+     LOGIN
+     ============================================================ */
+
+  useEffect(() => {
+    if (loggedIn) {
+      loadDashboard();
+    }
+  }, [loggedIn]);
+
+  async function handleLogin(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setMessage("Logging in...");
+
+    try {
+      const response =
+        await fetch(
+          `${API}/auth/login`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              email,
+              password,
+            }),
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          "Invalid email or password"
+        );
+      }
+
+      const data =
+        await response.json();
+
+      if (!data.token) {
+        throw new Error(
+          "Token not received"
+        );
+      }
+
+      localStorage.setItem(
+        "token",
+        data.token
+      );
+
+      setLoggedIn(true);
+      setMessage("");
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Failed to delete technician"
+          : "Login failed"
       );
-    } finally {
-      setLoading(false);
     }
-  };
+  }
 
-  // ============================================================
-  // SERVICE REQUESTS
-  // ============================================================
-
-  const loadServiceRequests = async (
-    jwtToken: string
-  ) => {
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        "http://localhost:8080/api/service-requests",
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load service requests"
-        );
-      }
-
-      const data =
-        await response.json();
-
-      setServiceRequests(data);
-
-    } catch (error) {
-      console.error(
-        "Service Requests error:",
-        error
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================================
-  // CREATE SERVICE REQUEST
-  // ============================================================
-
-  const handleCreateServiceRequest =
-    async (
-      e: React.FormEvent
-    ) => {
-      e.preventDefault();
-
-      const token = getToken();
-
-      if (!token) {
-        setMessage(
-          "Authentication required"
-        );
-        return;
-      }
-
-      try {
-        setLoading(true);
-
-        const response = await fetch(
-          "http://localhost:8080/api/service-requests",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              title:
-                serviceRequestForm.title,
-              description:
-                serviceRequestForm.description,
-              customerId:
-                Number(
-                  serviceRequestForm.customerId
-                ),
-              priority:
-                serviceRequestForm.priority,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const errorText =
-            await response.text();
-
-          throw new Error(
-            errorText ||
-              "Failed to create service request"
-          );
-        }
-
-        setServiceRequestForm({
-          title: "",
-          description: "",
-          customerId: "",
-          priority: "MEDIUM",
-        });
-
-        setShowServiceRequestForm(
-          false
-        );
-
-        await loadServiceRequests(
-          token
-        );
-
-        await loadDashboard(token);
-
-        setMessage(
-          "Service request created successfully!"
-        );
-
-      } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to create service request"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  // ============================================================
-  // WORK ORDERS
-  // ============================================================
-
-  const loadWorkOrders = async (
-    jwtToken: string
-  ) => {
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        "http://localhost:8080/api/workorders",
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load work orders"
-        );
-      }
-
-      const data =
-        await response.json();
-
-      setWorkOrders(data);
-
-    } catch (error) {
-      console.error(
-        "Work Orders error:",
-        error
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================================
-  // CREATE WORK ORDER
-  // ============================================================
-
-  const handleCreateWorkOrder =
-    async (
-      e: React.FormEvent
-    ) => {
-      e.preventDefault();
-
-      const token = getToken();
-
-      if (!token) {
-        setMessage(
-          "Authentication required"
-        );
-        return;
-      }
-
-      try {
-        setLoading(true);
-
-        const response = await fetch(
-          "http://localhost:8080/api/workorders",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              title:
-                workOrderForm.title,
-              description:
-                workOrderForm.description,
-              customerId:
-                Number(
-                  workOrderForm.customerId
-                ),
-              priority:
-                workOrderForm.priority,
-              status:
-                workOrderForm.status,
-              scheduledDate:
-                workOrderForm.scheduledDate ||
-                null,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const errorText =
-            await response.text();
-
-          throw new Error(
-            errorText ||
-              "Failed to create work order"
-          );
-        }
-
-        setWorkOrderForm({
-          title: "",
-          description: "",
-          customerId: "",
-          priority: "MEDIUM",
-          status: "OPEN",
-          scheduledDate: "",
-        });
-
-        setShowWorkOrderForm(false);
-
-        await loadWorkOrders(token);
-        await loadDashboard(token);
-
-        setMessage(
-          "Work order created successfully!"
-        );
-
-      } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to create work order"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  // ============================================================
-  // NAVIGATION
-  // ============================================================
-
-  const openDashboard = () => {
-    setPage("dashboard");
-
-    const token = getToken();
-
-    if (token) {
-      loadDashboard(token);
-    }
-  };
-
-  const openCustomers = () => {
-    setPage("customers");
-
-    const token = getToken();
-
-    if (token) {
-      loadCustomers(token);
-    }
-  };
-
-  const openTechnicians = () => {
-    setPage("technicians");
-
-    const token = getToken();
-
-    if (token) {
-      loadTechnicians(token);
-    }
-  };
-
-  const openServiceRequests = () => {
-    setPage("serviceRequests");
-
-    const token = getToken();
-
-    if (token) {
-      loadServiceRequests(token);
-    }
-  };
-
-  const openWorkOrders = () => {
-    setPage("workOrders");
-
-    const token = getToken();
-
-    if (token) {
-      loadWorkOrders(token);
-    }
-  };
-
-  // ============================================================
-  // LOGOUT
-  // ============================================================
-
-  const handleLogout = () => {
+  function logout() {
     localStorage.removeItem("token");
 
     setLoggedIn(false);
@@ -1025,27 +1163,117 @@ function App() {
 
     setEmail("");
     setPassword("");
-    setMessage("");
 
-    setPage("dashboard");
+    resetCustomerForm();
+    resetTechnicianForm();
+    resetServiceRequestForm();
+    resetWorkOrderForm();
+  }
 
-    setShowCustomerForm(false);
-    setShowTechnicianForm(false);
-    setShowServiceRequestForm(false);
-    setShowWorkOrderForm(false);
-  };
+  /* ============================================================
+     PAGE CHANGE
+     ============================================================ */
 
-  // ============================================================
-  // LOGGED-IN APPLICATION
-  // ============================================================
+  async function changePage(
+    nextPage: Page
+  ) {
+    setPage(nextPage);
 
-  if (loggedIn) {
+    if (nextPage === "dashboard") {
+      await loadDashboard();
+    }
+
+    if (nextPage === "customers") {
+      await loadCustomers();
+    }
+
+    if (nextPage === "technicians") {
+      await loadTechnicians();
+    }
+
+    if (nextPage === "serviceRequests") {
+      await loadCustomers();
+      await loadTechnicians();
+      await loadServiceRequests();
+    }
+
+    if (nextPage === "workOrders") {
+      await loadCustomers();
+      await loadWorkOrders();
+    }
+  }
+
+  /* ============================================================
+     LOGIN SCREEN
+     ============================================================ */
+
+  if (!loggedIn) {
     return (
-      <div className="dashboard-page">
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-brand-mark">
+            K
+          </div>
 
-        {/* HEADER */}
+          <h1>Keystone</h1>
 
-        <header className="dashboard-header">
+          <p>
+            Service Management System
+          </p>
+
+          <form
+            onSubmit={handleLogin}
+          >
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(event) =>
+                setEmail(
+                  event.target.value
+                )
+              }
+              required
+            />
+
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(event) =>
+                setPassword(
+                  event.target.value
+                )
+              }
+              required
+            />
+
+            <button type="submit">
+              Login
+            </button>
+          </form>
+
+          {message && (
+            <p className="message">
+              {message}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ============================================================
+     MAIN APP
+     ============================================================ */
+
+  return (
+    <div className="dashboard-page">
+      <header className="dashboard-header">
+        <div className="brand-block">
+          <div className="brand-mark">
+            K
+          </div>
 
           <div>
             <h1>Keystone</h1>
@@ -1054,277 +1282,382 @@ function App() {
               Service Management System
             </p>
           </div>
+        </div>
+
+        <div className="header-right">
+          <span className="online-pill">
+            <span />
+            System Online
+          </span>
 
           <button
             className="logout-button"
-            onClick={handleLogout}
+            onClick={logout}
           >
             Logout
           </button>
+        </div>
+      </header>
 
-        </header>
+      <nav className="navigation">
+        <button
+          className={
+            page === "dashboard"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            changePage("dashboard")
+          }
+        >
+          ⌂ Dashboard
+        </button>
 
-        {/* NAVIGATION */}
+        <button
+          className={
+            page === "customers"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            changePage("customers")
+          }
+        >
+          👥 Customers
+        </button>
 
-        <nav className="navigation">
+        <button
+          className={
+            page === "technicians"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            changePage("technicians")
+          }
+        >
+          🛠️ Technicians
+        </button>
 
-          <button
-            className={
-              page === "dashboard"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={openDashboard}
-          >
-            Dashboard
-          </button>
+        <button
+          className={
+            page === "serviceRequests"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            changePage(
+              "serviceRequests"
+            )
+          }
+        >
+          📋 Service Requests
+        </button>
 
-          <button
-            className={
-              page === "customers"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={openCustomers}
-          >
-            Customers
-          </button>
+        <button
+          className={
+            page === "workOrders"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            changePage("workOrders")
+          }
+        >
+          ⚙️ Work Orders
+        </button>
+      </nav>
 
-          <button
-            className={
-              page === "technicians"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={openTechnicians}
-          >
-            Technicians
-          </button>
+      <main className="dashboard-content">
 
-          <button
-            className={
-              page === "serviceRequests"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={
-              openServiceRequests
-            }
-          >
-            Service Requests
-          </button>
+        {/* =====================================================
+            DASHBOARD
+            ===================================================== */}
 
-          <button
-            className={
-              page === "workOrders"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={openWorkOrders}
-          >
-            Work Orders
-          </button>
+        {page === "dashboard" && (
+          <section className="modern-dashboard">
+            <div className="dashboard-hero">
+              <div>
+                <span className="dashboard-eyebrow">
+                  SERVICE MANAGEMENT
+                </span>
 
-        </nav>
+                <h2>
+                  Dashboard Overview
+                </h2>
 
-        {/* MAIN */}
-
-        <main className="dashboard-content">
-
-          {/* ==================================================
-              GLOBAL MESSAGE
-          ================================================== */}
-
-          {message && (
-            <p className="message">
-              {message}
-            </p>
-          )}
-
-          {/* ==================================================
-              DASHBOARD
-          ================================================== */}
-
-          {page === "dashboard" && (
-            <>
-              <h2>Dashboard</h2>
-
-              {!dashboard ? (
-                <p className="loading">
-                  Loading dashboard...
+                <p>
+                  Monitor customers,
+                  technicians, service
+                  requests and work
+                  orders from one place.
                 </p>
-              ) : (
-                <div className="dashboard-grid">
+              </div>
 
-                  <div className="dashboard-card">
-                    <h3>
-                      Total Customers
-                    </h3>
+              <button
+                className="dashboard-refresh"
+                onClick={
+                  loadDashboard
+                }
+              >
+                ↻ Refresh
+              </button>
+            </div>
 
-                    <strong>
+            {loading && (
+              <p className="loading">
+                Loading dashboard...
+              </p>
+            )}
+
+            {dashboard && (
+              <>
+                <div className="kpi-grid">
+
+                  <div className="kpi-card">
+                    <div className="kpi-top">
+                      <span className="kpi-icon">
+                        👥
+                      </span>
+
+                      <span className="kpi-label">
+                        CUSTOMERS
+                      </span>
+                    </div>
+
+                    <div className="kpi-value">
                       {
                         dashboard.totalCustomers
                       }
-                    </strong>
+                    </div>
+
+                    <p>
+                      Total registered
+                      customers
+                    </p>
                   </div>
 
-                  <div className="dashboard-card">
-                    <h3>
-                      Total Technicians
-                    </h3>
+                  <div className="kpi-card">
+                    <div className="kpi-top">
+                      <span className="kpi-icon">
+                        🛠️
+                      </span>
 
-                    <strong>
+                      <span className="kpi-label">
+                        TECHNICIANS
+                      </span>
+                    </div>
+
+                    <div className="kpi-value">
                       {
                         dashboard.totalTechnicians
                       }
-                    </strong>
+                    </div>
+
+                    <p>
+                      Available technicians
+                    </p>
                   </div>
 
-                  <div className="dashboard-card">
-                    <h3>
-                      Total Service Requests
-                    </h3>
+                  <div className="kpi-card">
+                    <div className="kpi-top">
+                      <span className="kpi-icon">
+                        📋
+                      </span>
 
-                    <strong>
+                      <span className="kpi-label">
+                        SERVICE REQUESTS
+                      </span>
+                    </div>
+
+                    <div className="kpi-value">
                       {
                         dashboard.totalServiceRequests
                       }
-                    </strong>
+                    </div>
+
+                    <p>
+                      Total service requests
+                    </p>
                   </div>
 
-                  <div className="dashboard-card">
-                    <h3>
-                      Total Work Orders
-                    </h3>
+                  <div className="kpi-card">
+                    <div className="kpi-top">
+                      <span className="kpi-icon">
+                        ⚙️
+                      </span>
 
-                    <strong>
+                      <span className="kpi-label">
+                        WORK ORDERS
+                      </span>
+                    </div>
+
+                    <div className="kpi-value">
                       {
                         dashboard.totalWorkOrders
                       }
-                    </strong>
-                  </div>
+                    </div>
 
-                  <div className="dashboard-card">
-                    <h3>
-                      Completed Requests
-                    </h3>
-
-                    <strong>
-                      {
-                        dashboard.completedRequests
-                      }
-                    </strong>
-                  </div>
-
-                  <div className="dashboard-card">
-                    <h3>
-                      Pending Requests
-                    </h3>
-
-                    <strong>
-                      {
-                        dashboard.pendingRequests
-                      }
-                    </strong>
-                  </div>
-
-                  <div className="dashboard-card">
-                    <h3>
-                      Open Work Orders
-                    </h3>
-
-                    <strong>
-                      {
-                        dashboard.openWorkOrders
-                      }
-                    </strong>
-                  </div>
-
-                  <div className="dashboard-card">
-                    <h3>
-                      Closed Work Orders
-                    </h3>
-
-                    <strong>
-                      {
-                        dashboard.closedWorkOrders
-                      }
-                    </strong>
+                    <p>
+                      Total work orders
+                    </p>
                   </div>
 
                 </div>
-              )}
-            </>
-          )}
 
-          {/* ==================================================
-              CUSTOMERS
-          ================================================== */}
-
-          {page === "customers" && (
-            <>
-              <div className="page-title">
-
-                <h2>Customers</h2>
-
-                <div>
-
-                  <button
-                    className="refresh-button"
-                    onClick={() =>
-                      setShowCustomerForm(
-                        !showCustomerForm
-                      )
-                    }
-                  >
-                    {showCustomerForm
-                      ? "Cancel"
-                      : editingCustomerId !== null
-                      ? "Cancel Edit"
-                      : "+ Add Customer"}
-                  </button>
-
-                  <button
-                    className="refresh-button"
-                    onClick={openCustomers}
-                    style={{
-                      marginLeft: "10px",
-                    }}
-                  >
-                    Refresh
-                  </button>
-
-                </div>
-
-              </div>
-
-              {/* CUSTOMER FORM */}
-
-              {showCustomerForm && (
-                <form
-                  className="customer-form"
-                  onSubmit={
-                    handleSaveCustomer
-                  }
-                >
-
+                <div className="section-heading">
                   <h3>
-                    {editingCustomerId !== null
-                      ? "Edit Customer"
-                      : "Add New Customer"}
+                    Operations Overview
                   </h3>
 
+                  <p>
+                    Current service activity
+                  </p>
+                </div>
+
+                <div className="status-grid">
+
+                  <div className="status-card">
+                    <div className="status-card-icon success">
+                      ✓
+                    </div>
+
+                    <div>
+                      <span>
+                        Completed Requests
+                      </span>
+
+                      <strong>
+                        {
+                          dashboard.completedRequests
+                        }
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="status-card">
+                    <div className="status-card-icon warning">
+                      !
+                    </div>
+
+                    <div>
+                      <span>
+                        Pending Requests
+                      </span>
+
+                      <strong>
+                        {
+                          dashboard.pendingRequests
+                        }
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="status-card">
+                    <div className="status-card-icon info">
+                      ↗
+                    </div>
+
+                    <div>
+                      <span>
+                        Open Work Orders
+                      </span>
+
+                      <strong>
+                        {
+                          dashboard.openWorkOrders
+                        }
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="status-card">
+                    <div className="status-card-icon closed">
+                      ✓
+                    </div>
+
+                    <div>
+                      <span>
+                        Closed Work Orders
+                      </span>
+
+                      <strong>
+                        {
+                          dashboard.closedWorkOrders
+                        }
+                      </strong>
+                    </div>
+                  </div>
+
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
+        {/* =====================================================
+            CUSTOMERS
+            ===================================================== */}
+
+        {page === "customers" && (
+          <section>
+            <div className="page-title">
+              <div>
+                <h2>
+                  Customers
+                </h2>
+
+                <p>
+                  Manage customer records.
+                </p>
+              </div>
+
+              <div>
+                <button
+                  className="add-button"
+                  onClick={
+                    startAddCustomer
+                  }
+                >
+                  + Add Customer
+                </button>
+
+                <button
+                  className="refresh-button"
+                  onClick={
+                    loadCustomers
+                  }
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+            </div>
+
+            {showCustomerForm && (
+              <div className="customer-form-card">
+                <h3>
+                  {editingCustomerId !==
+                  null
+                    ? "Edit Customer"
+                    : "Add Customer"}
+                </h3>
+
+                <form
+                  onSubmit={
+                    saveCustomer
+                  }
+                >
                   <input
                     type="text"
                     placeholder="Full Name"
                     value={
                       customerForm.fullName
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setCustomerForm({
                         ...customerForm,
                         fullName:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -1336,11 +1669,11 @@ function App() {
                     value={
                       customerForm.email
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setCustomerForm({
                         ...customerForm,
                         email:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -1352,213 +1685,217 @@ function App() {
                     value={
                       customerForm.phone
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setCustomerForm({
                         ...customerForm,
                         phone:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
                   />
 
-                  <input
-                    type="text"
+                  <textarea
                     placeholder="Address"
                     value={
                       customerForm.address
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setCustomerForm({
                         ...customerForm,
                         address:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
                   />
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading
-                      ? "Saving..."
-                      : editingCustomerId !==
-                        null
-                      ? "Update Customer"
-                      : "Save Customer"}
-                  </button>
+                  <div className="form-actions">
+                    <button
+                      type="submit"
+                      className="save-button"
+                    >
+                      {editingCustomerId !==
+                      null
+                        ? "Update Customer"
+                        : "Save Customer"}
+                    </button>
 
+                    <button
+                      type="button"
+                      className="cancel-button"
+                      onClick={
+                        resetCustomerForm
+                      }
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </form>
-              )}
+              </div>
+            )}
 
-              {loading ? (
-                <p className="loading">
-                  Loading customers...
-                </p>
-              ) : customers.length === 0 ? (
-                <p className="empty">
-                  No customers found.
-                </p>
-              ) : (
-                <div className="data-grid">
-
-                  {customers.map(
-                    (customer) => (
-                      <div
-                        className="data-card"
-                        key={customer.id}
-                      >
-
+            {loading ? (
+              <p className="loading">
+                Loading customers...
+              </p>
+            ) : customers.length ===
+              0 ? (
+              <p className="empty">
+                No customers found.
+              </p>
+            ) : (
+              <div className="data-grid">
+                {customers.map(
+                  (customer) => (
+                    <div
+                      className="data-card"
+                      key={
+                        customer.id
+                      }
+                    >
+                      <div className="card-heading-row">
                         <h3>
-                          {customer.fullName}
+                          {
+                            customer.fullName
+                          }
                         </h3>
 
-                        <p>
-                          <strong>ID:</strong>{" "}
-                          {customer.id}
-                        </p>
-
-                        <p>
-                          <strong>Email:</strong>{" "}
-                          {customer.email}
-                        </p>
-
-                        <p>
-                          <strong>Phone:</strong>{" "}
-                          {customer.phone}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Address:
-                          </strong>{" "}
-                          {customer.address}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Status:
-                          </strong>{" "}
-
-                          <span
-                            className={
-                              customer.active
-                                ? "status active"
-                                : "status inactive"
-                            }
-                          >
-                            {customer.active
-                              ? "Active"
-                              : "Inactive"}
-                          </span>
-                        </p>
-
-                        <div className="card-actions">
-
-                          <button
-                            className="refresh-button"
-                            onClick={() =>
-                              handleEditCustomer(
-                                customer
-                              )
-                            }
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            className="logout-button"
-                            onClick={() =>
-                              handleDeleteCustomer(
-                                customer.id
-                              )
-                            }
-                          >
-                            Delete
-                          </button>
-
-                        </div>
-
+                        <span
+                          className={
+                            customer.active
+                              ? "status active"
+                              : "status inactive"
+                          }
+                        >
+                          {customer.active
+                            ? "Active"
+                            : "Inactive"}
+                        </span>
                       </div>
-                    )
-                  )}
 
-                </div>
-              )}
-            </>
-          )}
+                      <p>
+                        <strong>
+                          ID:
+                        </strong>{" "}
+                        {customer.id}
+                      </p>
 
-          {/* ==================================================
-              TECHNICIANS
-          ================================================== */}
+                      <p>
+                        <strong>
+                          Email:
+                        </strong>{" "}
+                        {customer.email}
+                      </p>
 
-          {page === "technicians" && (
-            <>
-              <div className="page-title">
+                      <p>
+                        <strong>
+                          Phone:
+                        </strong>{" "}
+                        {customer.phone}
+                      </p>
 
-                <h2>Technicians</h2>
+                      <p>
+                        <strong>
+                          Address:
+                        </strong>{" "}
+                        {customer.address}
+                      </p>
 
-                <div>
+                      <div className="card-actions">
+                        <button
+                          className="edit-button"
+                          onClick={() =>
+                            editCustomer(
+                              customer
+                            )
+                          }
+                        >
+                          ✏️ Edit
+                        </button>
 
-                  <button
-                    className="refresh-button"
-                    onClick={() =>
-                      setShowTechnicianForm(
-                        !showTechnicianForm
-                      )
-                    }
-                  >
-                    {showTechnicianForm
-                      ? "Cancel"
-                      : "+ Add Technician"}
-                  </button>
+                        <button
+                          className="delete-button"
+                          onClick={() =>
+                            deleteCustomer(
+                              customer.id
+                            )
+                          }
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
-                  <button
-                    className="refresh-button"
-                    onClick={
-                      openTechnicians
-                    }
-                    style={{
-                      marginLeft: "10px",
-                    }}
-                  >
-                    Refresh
-                  </button>
+        {/* =====================================================
+            TECHNICIANS
+            ===================================================== */}
 
-                </div>
+        {page === "technicians" && (
+          <section>
+            <div className="page-title">
+              <div>
+                <h2>
+                  Technicians
+                </h2>
 
+                <p>
+                  Manage service technicians.
+                </p>
               </div>
 
-              {/* TECHNICIAN FORM */}
-
-              {showTechnicianForm && (
-                <form
-                  className="customer-form"
-                  onSubmit={
-                    handleSaveTechnician
+              <div>
+                <button
+                  className="add-button"
+                  onClick={
+                    startAddTechnician
                   }
                 >
+                  + Add Technician
+                </button>
 
-                  <h3>
-                    {editingTechnicianId !==
-                    null
-                      ? "Edit Technician"
-                      : "Add New Technician"}
-                  </h3>
+                <button
+                  className="refresh-button"
+                  onClick={
+                    loadTechnicians
+                  }
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+            </div>
 
+            {showTechnicianForm && (
+              <div className="customer-form-card">
+                <h3>
+                  {editingTechnicianId !==
+                  null
+                    ? "Edit Technician"
+                    : "Add Technician"}
+                </h3>
+
+                <form
+                  onSubmit={
+                    saveTechnician
+                  }
+                >
                   <input
                     type="text"
                     placeholder="Full Name"
                     value={
                       technicianForm.fullName
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setTechnicianForm({
                         ...technicianForm,
                         fullName:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -1570,11 +1907,11 @@ function App() {
                     value={
                       technicianForm.email
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setTechnicianForm({
                         ...technicianForm,
                         email:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -1586,11 +1923,11 @@ function App() {
                     value={
                       technicianForm.phone
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setTechnicianForm({
                         ...technicianForm,
                         phone:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -1602,199 +1939,202 @@ function App() {
                     value={
                       technicianForm.specialization
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setTechnicianForm({
                         ...technicianForm,
                         specialization:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                   />
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading
-                      ? "Saving..."
-                      : editingTechnicianId !==
-                        null
-                      ? "Update Technician"
-                      : "Save Technician"}
-                  </button>
+                  <div className="form-actions">
+                    <button
+                      type="submit"
+                      className="save-button"
+                    >
+                      {editingTechnicianId !==
+                      null
+                        ? "Update Technician"
+                        : "Save Technician"}
+                    </button>
 
+                    <button
+                      type="button"
+                      className="cancel-button"
+                      onClick={
+                        resetTechnicianForm
+                      }
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </form>
-              )}
+              </div>
+            )}
 
-              {loading ? (
-                <p className="loading">
-                  Loading technicians...
-                </p>
-              ) : technicians.length === 0 ? (
-                <p className="empty">
-                  No technicians found.
-                </p>
-              ) : (
-                <div className="data-grid">
-
-                  {technicians.map(
-                    (technician) => (
-                      <div
-                        className="data-card"
-                        key={technician.id}
-                      >
-
+            {loading ? (
+              <p className="loading">
+                Loading technicians...
+              </p>
+            ) : technicians.length ===
+              0 ? (
+              <p className="empty">
+                No technicians found.
+              </p>
+            ) : (
+              <div className="data-grid">
+                {technicians.map(
+                  (technician) => (
+                    <div
+                      className="data-card"
+                      key={
+                        technician.id
+                      }
+                    >
+                      <div className="card-heading-row">
                         <h3>
                           {
                             technician.fullName
                           }
                         </h3>
 
-                        <p>
-                          <strong>ID:</strong>{" "}
-                          {technician.id}
-                        </p>
-
-                        <p>
-                          <strong>Email:</strong>{" "}
-                          {technician.email}
-                        </p>
-
-                        <p>
-                          <strong>Phone:</strong>{" "}
-                          {technician.phone}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Specialization:
-                          </strong>{" "}
-                          {
-                            technician.specialization
+                        <span
+                          className={
+                            technician.active
+                              ? "status active"
+                              : "status inactive"
                           }
-                        </p>
-
-                        <p>
-                          <strong>
-                            Status:
-                          </strong>{" "}
-
-                          <span
-                            className={
-                              technician.active
-                                ? "status active"
-                                : "status inactive"
-                            }
-                          >
-                            {technician.active
-                              ? "Active"
-                              : "Inactive"}
-                          </span>
-                        </p>
-
-                        <div className="card-actions">
-
-                          <button
-                            className="refresh-button"
-                            onClick={() =>
-                              handleEditTechnician(
-                                technician
-                              )
-                            }
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            className="logout-button"
-                            onClick={() =>
-                              handleDeleteTechnician(
-                                technician.id
-                              )
-                            }
-                          >
-                            Delete
-                          </button>
-
-                        </div>
-
+                        >
+                          {technician.active
+                            ? "Active"
+                            : "Inactive"}
+                        </span>
                       </div>
-                    )
-                  )}
 
-                </div>
-              )}
-            </>
-          )}
+                      <p>
+                        <strong>
+                          ID:
+                        </strong>{" "}
+                        {technician.id}
+                      </p>
 
-          {/* ==================================================
-              SERVICE REQUESTS
-          ================================================== */}
+                      <p>
+                        <strong>
+                          Email:
+                        </strong>{" "}
+                        {technician.email}
+                      </p>
 
-          {page === "serviceRequests" && (
-            <>
-              <div className="page-title">
+                      <p>
+                        <strong>
+                          Phone:
+                        </strong>{" "}
+                        {technician.phone}
+                      </p>
 
+                      <p>
+                        <strong>
+                          Specialization:
+                        </strong>{" "}
+                        {technician.specialization ||
+                          "N/A"}
+                      </p>
+
+                      <div className="card-actions">
+                        <button
+                          className="edit-button"
+                          onClick={() =>
+                            editTechnician(
+                              technician
+                            )
+                          }
+                        >
+                          ✏️ Edit
+                        </button>
+
+                        <button
+                          className="delete-button"
+                          onClick={() =>
+                            deleteTechnician(
+                              technician.id
+                            )
+                          }
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* =====================================================
+            SERVICE REQUESTS
+            ===================================================== */}
+
+        {page === "serviceRequests" && (
+          <section>
+            <div className="page-title">
+              <div>
                 <h2>
                   Service Requests
                 </h2>
 
-                <div>
-
-                  <button
-                    className="refresh-button"
-                    onClick={() =>
-                      setShowServiceRequestForm(
-                        !showServiceRequestForm
-                      )
-                    }
-                  >
-                    {showServiceRequestForm
-                      ? "Cancel"
-                      : "+ Create Request"}
-                  </button>
-
-                  <button
-                    className="refresh-button"
-                    onClick={
-                      openServiceRequests
-                    }
-                    style={{
-                      marginLeft: "10px",
-                    }}
-                  >
-                    Refresh
-                  </button>
-
-                </div>
-
+                <p>
+                  Create, update and manage service requests.
+                </p>
               </div>
 
-              {/* SERVICE REQUEST FORM */}
-
-              {showServiceRequestForm && (
-                <form
-                  className="customer-form"
-                  onSubmit={
-                    handleCreateServiceRequest
+              <div>
+                <button
+                  className="add-button"
+                  onClick={
+                    startAddServiceRequest
                   }
                 >
+                  + Add Request
+                </button>
 
-                  <h3>
-                    Create Service Request
-                  </h3>
+                <button
+                  className="refresh-button"
+                  onClick={
+                    loadServiceRequests
+                  }
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+            </div>
 
+            {showServiceRequestForm && (
+              <div className="customer-form-card">
+                <h3>
+                  {editingServiceRequestId !==
+                  null
+                    ? "Edit Service Request"
+                    : "Create Service Request"}
+                </h3>
+
+                <form
+                  onSubmit={
+                    saveServiceRequest
+                  }
+                >
                   <input
                     type="text"
                     placeholder="Title"
                     value={
                       serviceRequestForm.title
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setServiceRequestForm({
                         ...serviceRequestForm,
                         title:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -1805,11 +2145,11 @@ function App() {
                     value={
                       serviceRequestForm.description
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setServiceRequestForm({
                         ...serviceRequestForm,
                         description:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -1819,16 +2159,15 @@ function App() {
                     value={
                       serviceRequestForm.customerId
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setServiceRequestForm({
                         ...serviceRequestForm,
                         customerId:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
                   >
-
                     <option value="">
                       Select Customer
                     </option>
@@ -1836,223 +2175,330 @@ function App() {
                     {customers.map(
                       (customer) => (
                         <option
-                          key={customer.id}
-                          value={customer.id}
+                          key={
+                            customer.id
+                          }
+                          value={
+                            customer.id
+                          }
                         >
-                          {customer.fullName}
+                          {
+                            customer.fullName
+                          }
                         </option>
                       )
                     )}
-
                   </select>
 
                   <select
                     value={
                       serviceRequestForm.priority
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setServiceRequestForm({
                         ...serviceRequestForm,
                         priority:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
+                    required
                   >
-
-                    <option value="LOW">
-                      LOW
-                    </option>
-
-                    <option value="MEDIUM">
-                      MEDIUM
-                    </option>
-
-                    <option value="HIGH">
-                      HIGH
-                    </option>
-
-                    <option value="URGENT">
-                      URGENT
-                    </option>
-
+                    {priorities.map(
+                      (priority) => (
+                        <option
+                          key={
+                            priority
+                          }
+                          value={
+                            priority
+                          }
+                        >
+                          {priority}
+                        </option>
+                      )
+                    )}
                   </select>
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading
-                      ? "Creating..."
-                      : "Create Service Request"}
-                  </button>
+                  <div className="form-actions">
+                    <button
+                      type="submit"
+                      className="save-button"
+                    >
+                      {editingServiceRequestId !==
+                      null
+                        ? "Update Request"
+                        : "Create Request"}
+                    </button>
 
+                    <button
+                      type="button"
+                      className="cancel-button"
+                      onClick={
+                        resetServiceRequestForm
+                      }
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </form>
-              )}
+              </div>
+            )}
 
-              {loading ? (
-                <p className="loading">
-                  Loading service requests...
-                </p>
-              ) : serviceRequests.length ===
-                0 ? (
-                <p className="empty">
-                  No service requests found.
-                </p>
-              ) : (
-                <div className="data-grid">
-
-                  {serviceRequests.map(
-                    (request) => (
-                      <div
-                        className="data-card"
-                        key={request.id}
-                      >
-
+            {loading ? (
+              <p className="loading">
+                Loading service requests...
+              </p>
+            ) : serviceRequests.length ===
+              0 ? (
+              <p className="empty">
+                No service requests found.
+              </p>
+            ) : (
+              <div className="data-grid">
+                {serviceRequests.map(
+                  (request) => (
+                    <div
+                      className="data-card"
+                      key={
+                        request.id
+                      }
+                    >
+                      <div className="card-heading-row">
                         <h3>
-                          {request.title}
+                          {
+                            request.title
+                          }
                         </h3>
 
-                        <p>
-                          <strong>ID:</strong>{" "}
-                          {request.id}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Description:
-                          </strong>{" "}
-                          {request.description}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Customer:
-                          </strong>{" "}
-                          {request.customerName}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Customer ID:
-                          </strong>{" "}
-                          {request.customerId}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Priority:
-                          </strong>{" "}
-
-                          <span className="priority">
-                            {request.priority}
-                          </span>
-                        </p>
-
-                        <p>
-                          <strong>
-                            Status:
-                          </strong>{" "}
-
-                          <span className="status">
-                            {request.status}
-                          </span>
-                        </p>
-
-                        <p>
-                          <strong>
-                            Technician:
-                          </strong>{" "}
-                          {request.technicianName ||
-                            "Not Assigned"}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Created:
-                          </strong>{" "}
-
-                          {request.createdAt
-                            ? new Date(
-                                request.createdAt
-                              ).toLocaleString()
-                            : "N/A"}
-                        </p>
-
+                        <span className="status">
+                          {
+                            request.status
+                          }
+                        </span>
                       </div>
-                    )
-                  )}
 
-                </div>
-              )}
-            </>
-          )}
+                      <p>
+                        <strong>
+                          ID:
+                        </strong>{" "}
+                        {request.id}
+                      </p>
 
-          {/* ==================================================
-              WORK ORDERS
-          ================================================== */}
+                      <p>
+                        <strong>
+                          Description:
+                        </strong>{" "}
+                        {
+                          request.description
+                        }
+                      </p>
 
-          {page === "workOrders" && (
-            <>
-              <div className="page-title">
+                      <p>
+                        <strong>
+                          Customer:
+                        </strong>{" "}
+                        {
+                          request.customerName
+                        }
+                      </p>
 
-                <h2>Work Orders</h2>
+                      <p>
+                        <strong>
+                          Priority:
+                        </strong>{" "}
+                        <span className="priority">
+                          {
+                            request.priority
+                          }
+                        </span>
+                      </p>
 
-                <div>
+                      <p>
+                        <strong>
+                          Technician:
+                        </strong>{" "}
+                        {
+                          request.technicianName ||
+                          "Not Assigned"
+                        }
+                      </p>
 
-                  <button
-                    className="refresh-button"
-                    onClick={() =>
-                      setShowWorkOrderForm(
-                        !showWorkOrderForm
-                      )
-                    }
-                  >
-                    {showWorkOrderForm
-                      ? "Cancel"
-                      : "+ Create Work Order"}
-                  </button>
+                      <p>
+                        <strong>
+                          Created:
+                        </strong>{" "}
+                        {request.createdAt
+                          ? new Date(
+                              request.createdAt
+                            ).toLocaleString()
+                          : "N/A"}
+                      </p>
 
-                  <button
-                    className="refresh-button"
-                    onClick={
-                      openWorkOrders
-                    }
-                    style={{
-                      marginLeft: "10px",
-                    }}
-                  >
-                    Refresh
-                  </button>
+                      <div className="card-actions">
+                        <button
+                          className="edit-button"
+                          onClick={() =>
+                            editServiceRequest(
+                              request
+                            )
+                          }
+                        >
+                          ✏️ Edit
+                        </button>
 
-                </div>
+                        <button
+                          className="delete-button"
+                          onClick={() =>
+                            deleteServiceRequest(
+                              request.id
+                            )
+                          }
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
 
+                      <div className="customer-form-card">
+                        <strong>
+                          Update Status
+                        </strong>
+
+                        <select
+                          value={
+                            request.status
+                          }
+                          onChange={(event) =>
+                            updateServiceRequestStatus(
+                              request.id,
+                              event.target.value
+                            )
+                          }
+                        >
+                          {statuses.map(
+                            (status) => (
+                              <option
+                                key={
+                                  status
+                                }
+                                value={
+                                  status
+                                }
+                              >
+                                {status}
+                              </option>
+                            )
+                          )}
+                        </select>
+
+                        <strong>
+                          Assign Technician
+                        </strong>
+
+                        <select
+                          defaultValue=""
+                          onChange={(event) =>
+                            assignTechnician(
+                              request.id,
+                              Number(
+                                event.target
+                                  .value
+                              )
+                            )
+                          }
+                        >
+                          <option value="">
+                            Select Technician
+                          </option>
+
+                          {technicians.map(
+                            (technician) => (
+                              <option
+                                key={
+                                  technician.id
+                                }
+                                value={
+                                  technician.id
+                                }
+                              >
+                                {
+                                  technician.fullName
+                                }
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* =====================================================
+            WORK ORDERS
+            ===================================================== */}
+
+        {page === "workOrders" && (
+          <section>
+            <div className="page-title">
+              <div>
+                <h2>
+                  Work Orders
+                </h2>
+
+                <p>
+                  Create and manage work orders.
+                </p>
               </div>
 
-              {/* WORK ORDER FORM */}
-
-              {showWorkOrderForm && (
-                <form
-                  className="customer-form"
-                  onSubmit={
-                    handleCreateWorkOrder
+              <div>
+                <button
+                  className="add-button"
+                  onClick={
+                    startAddWorkOrder
                   }
                 >
+                  + Add Work Order
+                </button>
 
-                  <h3>
-                    Create Work Order
-                  </h3>
+                <button
+                  className="refresh-button"
+                  onClick={
+                    loadWorkOrders
+                  }
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+            </div>
 
+            {showWorkOrderForm && (
+              <div className="customer-form-card">
+                <h3>
+                  {editingWorkOrderId !==
+                  null
+                    ? "Edit Work Order"
+                    : "Create Work Order"}
+                </h3>
+
+                <form
+                  onSubmit={
+                    saveWorkOrder
+                  }
+                >
                   <input
                     type="text"
                     placeholder="Title"
                     value={
                       workOrderForm.title
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setWorkOrderForm({
                         ...workOrderForm,
                         title:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -2063,11 +2509,11 @@ function App() {
                     value={
                       workOrderForm.description
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setWorkOrderForm({
                         ...workOrderForm,
                         description:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
@@ -2077,16 +2523,15 @@ function App() {
                     value={
                       workOrderForm.customerId
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setWorkOrderForm({
                         ...workOrderForm,
                         customerId:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                     required
                   >
-
                     <option value="">
                       Select Customer
                     </option>
@@ -2094,76 +2539,77 @@ function App() {
                     {customers.map(
                       (customer) => (
                         <option
-                          key={customer.id}
-                          value={customer.id}
+                          key={
+                            customer.id
+                          }
+                          value={
+                            customer.id
+                          }
                         >
-                          {customer.fullName}
+                          {
+                            customer.fullName
+                          }
                         </option>
                       )
                     )}
-
                   </select>
 
                   <select
                     value={
                       workOrderForm.priority
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setWorkOrderForm({
                         ...workOrderForm,
                         priority:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
+                    required
                   >
-
-                    <option value="LOW">
-                      LOW
-                    </option>
-
-                    <option value="MEDIUM">
-                      MEDIUM
-                    </option>
-
-                    <option value="HIGH">
-                      HIGH
-                    </option>
-
-                    <option value="URGENT">
-                      URGENT
-                    </option>
-
+                    {priorities.map(
+                      (priority) => (
+                        <option
+                          key={
+                            priority
+                          }
+                          value={
+                            priority
+                          }
+                        >
+                          {priority}
+                        </option>
+                      )
+                    )}
                   </select>
 
                   <select
                     value={
                       workOrderForm.status
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setWorkOrderForm({
                         ...workOrderForm,
                         status:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
+                    required
                   >
-
-                    <option value="OPEN">
-                      OPEN
-                    </option>
-
-                    <option value="IN_PROGRESS">
-                      IN_PROGRESS
-                    </option>
-
-                    <option value="COMPLETED">
-                      COMPLETED
-                    </option>
-
-                    <option value="CLOSED">
-                      CLOSED
-                    </option>
-
+                    {statuses.map(
+                      (status) => (
+                        <option
+                          key={
+                            status
+                          }
+                          value={
+                            status
+                          }
+                        >
+                          {status}
+                        </option>
+                      )
+                    )}
                   </select>
 
                   <input
@@ -2171,181 +2617,158 @@ function App() {
                     value={
                       workOrderForm.scheduledDate
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setWorkOrderForm({
                         ...workOrderForm,
                         scheduledDate:
-                          e.target.value,
+                          event.target.value,
                       })
                     }
                   />
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading
-                      ? "Creating..."
-                      : "Create Work Order"}
-                  </button>
+                  <div className="form-actions">
+                    <button
+                      type="submit"
+                      className="save-button"
+                    >
+                      {editingWorkOrderId !==
+                      null
+                        ? "Update Work Order"
+                        : "Create Work Order"}
+                    </button>
 
+                    <button
+                      type="button"
+                      className="cancel-button"
+                      onClick={
+                        resetWorkOrderForm
+                      }
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </form>
-              )}
+              </div>
+            )}
 
-              {loading ? (
-                <p className="loading">
-                  Loading work orders...
-                </p>
-              ) : workOrders.length ===
-                0 ? (
-                <p className="empty">
-                  No work orders found.
-                </p>
-              ) : (
-                <div className="data-grid">
-
-                  {workOrders.map(
-                    (order) => (
-                      <div
-                        className="data-card"
-                        key={order.id}
-                      >
-
+            {loading ? (
+              <p className="loading">
+                Loading work orders...
+              </p>
+            ) : workOrders.length ===
+              0 ? (
+              <p className="empty">
+                No work orders found.
+              </p>
+            ) : (
+              <div className="data-grid">
+                {workOrders.map(
+                  (order) => (
+                    <div
+                      className="data-card"
+                      key={order.id}
+                    >
+                      <div className="card-heading-row">
                         <h3>
                           {order.title}
                         </h3>
 
-                        <p>
-                          <strong>ID:</strong>{" "}
-                          {order.id}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Description:
-                          </strong>{" "}
-                          {order.description}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Customer:
-                          </strong>{" "}
-                          {order.customerName}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Customer ID:
-                          </strong>{" "}
-                          {order.customerId}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Priority:
-                          </strong>{" "}
-
-                          <span className="priority">
-                            {order.priority}
-                          </span>
-                        </p>
-
-                        <p>
-                          <strong>
-                            Status:
-                          </strong>{" "}
-
-                          <span className="status">
-                            {order.status}
-                          </span>
-                        </p>
-
-                        <p>
-                          <strong>
-                            Scheduled Date:
-                          </strong>{" "}
-                          {order.scheduledDate ||
-                            "Not Scheduled"}
-                        </p>
-
-                        <p>
-                          <strong>
-                            Created:
-                          </strong>{" "}
-
-                          {order.createdAt
-                            ? new Date(
-                                order.createdAt
-                              ).toLocaleString()
-                            : "N/A"}
-                        </p>
-
+                        <span className="status">
+                          {
+                            order.status
+                          }
+                        </span>
                       </div>
-                    )
-                  )}
 
-                </div>
-              )}
-            </>
-          )}
+                      <p>
+                        <strong>
+                          ID:
+                        </strong>{" "}
+                        {order.id}
+                      </p>
 
-        </main>
-      </div>
-    );
-  }
+                      <p>
+                        <strong>
+                          Description:
+                        </strong>{" "}
+                        {
+                          order.description
+                        }
+                      </p>
 
-  // ============================================================
-  // LOGIN PAGE
-  // ============================================================
+                      <p>
+                        <strong>
+                          Customer:
+                        </strong>{" "}
+                        {
+                          order.customerName
+                        }
+                      </p>
 
-  return (
-    <div className="login-page">
+                      <p>
+                        <strong>
+                          Priority:
+                        </strong>{" "}
+                        <span className="priority">
+                          {
+                            order.priority
+                          }
+                        </span>
+                      </p>
 
-      <div className="login-card">
+                      <p>
+                        <strong>
+                          Scheduled Date:
+                        </strong>{" "}
+                        {
+                          order.scheduledDate ||
+                          "Not Scheduled"
+                        }
+                      </p>
 
-        <h1>Keystone</h1>
+                      <p>
+                        <strong>
+                          Created:
+                        </strong>{" "}
+                        {order.createdAt
+                          ? new Date(
+                              order.createdAt
+                            ).toLocaleString()
+                          : "N/A"}
+                      </p>
 
-        <p>
-          Service Management System
-        </p>
+                      <div className="card-actions">
+                        <button
+                          className="edit-button"
+                          onClick={() =>
+                            editWorkOrder(
+                              order
+                            )
+                          }
+                        >
+                          ✏️ Edit
+                        </button>
 
-        <form onSubmit={handleLogin}>
-
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) =>
-              setEmail(e.target.value)
-            }
-            required
-          />
-
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) =>
-              setPassword(e.target.value)
-            }
-            required
-          />
-
-          <button type="submit">
-            Login
-          </button>
-
-        </form>
-
-        {message && (
-          <p className="message">
-            {message}
-          </p>
+                        <button
+                          className="delete-button"
+                          onClick={() =>
+                            deleteWorkOrder(
+                              order.id
+                            )
+                          }
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </section>
         )}
 
-      </div>
-
+      </main>
     </div>
   );
 }

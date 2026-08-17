@@ -1,6 +1,5 @@
 package com.keystone.backend.controller;
 
-//       import com.keystone.backend.domain.WorkOrder;
 import com.keystone.backend.dto.WorkOrderRequest;
 import com.keystone.backend.dto.WorkOrderResponse;
 import com.keystone.backend.service.WorkOrderService;
@@ -21,14 +20,14 @@ public class WorkOrderController {
     @Autowired
     private WorkOrderService workOrderService;
 
-    // GET ALL
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER', 'TECHNICIAN')")
     public ResponseEntity<List<WorkOrderResponse>> getAllWorkOrders() {
-        return ResponseEntity.ok(workOrderService.getAllWorkOrders());
+
+        return ResponseEntity.ok(
+                workOrderService.getAllWorkOrders());
     }
 
-    // GET BY ID
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER', 'TECHNICIAN')")
     public ResponseEntity<WorkOrderResponse> getWorkOrderById(
@@ -38,7 +37,6 @@ public class WorkOrderController {
                 workOrderService.getWorkOrderById(id));
     }
 
-    // CREATE
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
     public ResponseEntity<WorkOrderResponse> createWorkOrder(
@@ -48,7 +46,6 @@ public class WorkOrderController {
                 workOrderService.createWorkOrder(request));
     }
 
-    // UPDATE
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
     public ResponseEntity<WorkOrderResponse> updateWorkOrder(
@@ -59,7 +56,6 @@ public class WorkOrderController {
                 workOrderService.updateWorkOrder(id, request));
     }
 
-    // DELETE
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> deleteWorkOrder(
@@ -67,6 +63,7 @@ public class WorkOrderController {
 
         workOrderService.deleteWorkOrder(id);
 
-        return ResponseEntity.ok("Work Order Deleted Successfully");
+        return ResponseEntity.ok(
+                "Work Order Deleted Successfully");
     }
 }

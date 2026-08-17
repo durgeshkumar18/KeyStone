@@ -33,8 +33,10 @@ public class WorkOrder {
     @Column(nullable = false)
     private LocalDate scheduledDate;
 
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(nullable = false)
     private LocalDateTime updatedAt;
 
     public WorkOrder() {
@@ -44,6 +46,10 @@ public class WorkOrder {
     public void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+
+        if (status == null) {
+            status = WorkOrderStatus.OPEN;
+        }
     }
 
     @PreUpdate

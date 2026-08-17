@@ -4,6 +4,7 @@ import com.keystone.backend.domain.Role;
 import com.keystone.backend.domain.User;
 import com.keystone.backend.dto.RegisterRequest;
 import com.keystone.backend.repository.UserRepository;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -34,8 +35,10 @@ public class UserService {
         user.setPassword(
                 passwordEncoder.encode(request.getPassword()));
 
-        // Public registration always creates CUSTOMER
-        user.setRole(Role.CUSTOMER);
+        /*
+         * TEST ADMIN ACCOUNT
+         */
+        user.setRole(Role.ADMIN);
 
         user.setEnabled(true);
 

@@ -5,6 +5,7 @@ import com.keystone.backend.dto.AuthResponse;
 import com.keystone.backend.dto.LoginRequest;
 import com.keystone.backend.repository.UserRepository;
 import com.keystone.backend.security.JwtService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,11 +25,18 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("Invalid Email or Password"));
+        User user = userRepository
+                .findByEmail(request.getEmail())
+                .orElseThrow(
+                        () -> new BadCredentialsException(
+                                "Invalid Email or Password"));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new BadCredentialsException("Invalid Email or Password");
+        if (!passwordEncoder.matches(
+                request.getPassword(),
+                user.getPassword())) {
+
+            throw new BadCredentialsException(
+                    "Invalid Email or Password");
         }
 
         String token = jwtService.generateToken(user.getEmail());
